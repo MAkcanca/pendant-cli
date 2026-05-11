@@ -55,3 +55,69 @@ def push_messages(
             peripheral_id=peripheral_id,
             timeout=timeout,
         )
+
+
+# ---------------------------------------------------------------------------
+# Voice enrollment uploads (used by `pendant enroll-voice`).
+#
+# The server URL passed in is the base (e.g. http://server:8000); we
+# append the appropriate /v3/voices/... path internally. This matches
+# `pendant push` which takes the FULL ingest URL — enrollment is
+# different because we may need to hit either of two endpoints.
+# ---------------------------------------------------------------------------
+
+def enroll_wearer_voice(
+    *,
+    client: httpx.Client,
+    audio_path: Path,
+    server_url: str,
+    name: str = "Wearer",
+    timeout: float = 120.0,
+) -> dict:
+    """POST audio to <server>/v3/voices/wearer. Replaces the existing
+    wearer's sample if one exists."""
+    endpoint = server_url.rstrip("/") + "/v3/voices/wearer"
+    with open(audio_path, "rb") as f:
+        resp = client.post(
+            endpoint,
+            files={"file": (audio_path.name, f,
+                            _guess_content_type(audio_path))},
+            data={"name": name},
+            timeout=timeout,
+        )
+    resp.raise_for_status()
+    return resp.json()
+
+
+def enroll_person_voice(
+    *,
+    client: httpx.Client,
+    audio_path: Path,
+    server_url: str,
+    name: str,
+    timeout: float = 120.0,
+) -> dict:
+    """POST audio to <server>/v3/voices/people with a name. Creates a
+    new (non-wearer) Person row; returns 409 if `name` already exists."""
+    endpoint = server_url.rstrip("/") + "/v3/voices/people"
+    with open(audio_path, "rb") as f:
+        resp = client.post(
+            endpoint,
+            files={"file": (audio_path.name, f,
+                            _guess_content_type(audio_path))},
+            data={"name": name},
+            timeout=timeout,
+        )
+    resp.raise_for_status()
+    return resp.json()
+
+
+def _guess_content_type(path: Path) -> str:
+    suffix = path.suffix.lower()
+    return {
+        ".opus": "audio/ogg",
+        ".ogg": "audio/ogg",
+        ".wav": "audio/wav",
+        ".mp3": "audio/mpeg",
+        ".m4a": "audio/mp4",
+    }.get(suffix, "application/octet-stream")

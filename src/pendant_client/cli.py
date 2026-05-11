@@ -1078,6 +1078,184 @@ def push(bin_path: str, url: str, peripheral_id: Optional[str]) -> None:
                f"bytes={result['bytes']}")
 
 
+@main.command("enroll-voice")
+@click.argument("address")
+@click.option("--url", required=True,
+              help="Server BASE url, e.g. http://localhost:8000. "
+                   "We append /v3/voices/{wearer,people} internally.")
+@click.option("--wearer", is_flag=True,
+              help="Enroll yourself as the wearer (singleton — replaces "
+                   "the previous wearer sample if one exists).")
+@click.option("--name", default=None,
+              help="Enroll a named friend. Mutually exclusive with --wearer.")
+@click.option("--out-dir", "out_dir", type=click.Path(),
+              default=".", show_default=True,
+              help="Where to save the raw .bin and decoded .opus files. "
+                   "Kept for reference; not auto-pushed to ingest.")
+@click.option("--key", "key_path", type=click.Path(exists=True),
+              help="Path to the audio private key (PEM). Required if "
+                   "your pendant's audio is encrypted.")
+@click.option("--idle", default=5.0, show_default=True,
+              help="Stop capture after N seconds of silence.")
+@click.option("--min-duration", "min_duration", default=5.0,
+              show_default=True,
+              help="Reject if the longest captured recording is shorter "
+                   "than this many seconds (server-side bound is 5s).")
+def enroll_voice(
+    address: str, url: str, wearer: bool, name: Optional[str],
+    out_dir: str, key_path: Optional[str], idle: float,
+    min_duration: float,
+) -> None:
+    """Capture audio from the pendant + upload it as an enrolled voice.
+
+    Usage (enrolling yourself):
+      1) Press the pendant button to start a recording.
+      2) Talk naturally for 30+ seconds. Read a paragraph, describe
+         what you did today — anything that sounds like you.
+      3) Press the button again to stop.
+      4) Run this command; it'll sync the recording, pick the longest
+         one captured, and upload it to the server's /v3/voices/wearer
+         endpoint.
+
+    The captured .bin is saved in --out-dir for your records (you can
+    push it to the ingest endpoint later via `pendant push` if you
+    want the audio in your lifelog feed too). Enrollment itself does
+    NOT push to ingest.
+    """
+    if not wearer and not name:
+        raise click.UsageError("pass --wearer or --name")
+    if wearer and name:
+        raise click.UsageError("pass only one of --wearer or --name")
+
+    # Top-level imports already cover crypto/session/decode; only the
+    # upload helpers are local to this command.
+    from .decode import write_batch_ingest_request
+    from .upload import enroll_person_voice, enroll_wearer_voice
+
+    out_path = Path(out_dir)
+    out_path.mkdir(parents=True, exist_ok=True)
+    bin_path = out_path / "enroll-voice.bin"
+    audio_base = out_path / "enroll-voice"
+
+    async def go() -> int:
+        async with PendantSession(address) as s:
+            di = await s.get_device_info()
+            click.echo(
+                f"Connected: serial={di.serial_num} fw={di.firmware_ver} "
+                f"battery={di.battery_percent}% "
+                f"pages={di.oldest_flash_page}..{di.newest_flash_page}")
+
+            keyset: Optional[AudioKeySet] = None
+            if key_path:
+                keyset = keyset_from_existing(
+                    Path(key_path).read_bytes(),
+                    di.audio_encryption_pub_key)
+                click.echo(f"Loaded private key from {key_path}")
+
+            click.echo(
+                f"\nPress the pendant button now and talk for 30+ seconds.")
+            click.echo(
+                "Read a paragraph or describe your day — anything natural.")
+            click.echo("Press the button again to stop, then wait.")
+            click.echo(f"Listening (idle timeout {idle:.0f}s)...\n")
+
+            raw_messages: list[bytes] = []
+            n = 0
+            try:
+                async for payload in s.download_raw_pendant_messages(
+                        idle_timeout=idle):
+                    raw_messages.append(payload)
+                    n += 1
+                    if n % 250 == 0:
+                        click.echo(f"  ... {n} messages captured")
+            finally:
+                write_batch_ingest_request(
+                    messages=raw_messages,
+                    ble_identifier=address,
+                    path=bin_path,
+                )
+                click.echo(
+                    f"\nCaptured {n} messages "
+                    f"({bin_path.stat().st_size} bytes) -> {bin_path.name}")
+
+        if not raw_messages:
+            click.echo("\nNo audio captured. Did you press the pendant "
+                       "button to record?", err=True)
+            return 2
+
+        click.echo(f"\nDecoding into {audio_base.name}_rec*.opus ...")
+        chunks = iter_audio_chunks_from_messages(
+            raw_messages, keys=keyset, accept_types=(1, 2))
+        n_audio, n_events, recordings = _decode_chunks_into_files(
+            audio_base=audio_base, chunks_iter=chunks, address=address,
+            di=di, include_logs=False, progress=False,
+        )
+        if not recordings:
+            click.echo(
+                "\nNo decoded recordings. The pendant returned chunks "
+                "but none could be decoded into audio. If your audio is "
+                "encrypted you need --key.", err=True)
+            return 2
+
+        # Pick the longest recording by chunk count (each chunk is 20 ms).
+        longest_idx, longest_rw = max(
+            recordings.items(), key=lambda kv: kv[1].chunk_count)
+        duration_sec = longest_rw.chunk_count * 0.020
+        click.echo(
+            f"\nPicked recording #{longest_idx} as the enrollment sample: "
+            f"{longest_rw.path.name} "
+            f"({longest_rw.chunk_count} chunks ≈ {duration_sec:.1f}s, "
+            f"{longest_rw.path.stat().st_size} bytes)")
+
+        if duration_sec < min_duration:
+            click.echo(
+                f"\nRecording is too short ({duration_sec:.1f}s < "
+                f"{min_duration:.0f}s). Hold the pendant button and talk "
+                f"for longer, then retry.", err=True)
+            return 2
+
+        click.echo(f"Uploading to {url} ...")
+        import httpx
+        try:
+            with httpx.Client() as http:
+                if wearer:
+                    result = enroll_wearer_voice(
+                        client=http,
+                        audio_path=longest_rw.path,
+                        server_url=url,
+                    )
+                    click.echo(
+                        f"Enrolled as wearer: person_id={result['person_id']} "
+                        f"sample_id={result['sample_id']} "
+                        f"duration={result['duration_seconds']:.1f}s "
+                        f"embedding_dim={result['embedding_dim']}")
+                else:
+                    result = enroll_person_voice(
+                        client=http,
+                        audio_path=longest_rw.path,
+                        server_url=url,
+                        name=name,  # type: ignore[arg-type]
+                    )
+                    click.echo(
+                        f"Enrolled {name!r}: "
+                        f"person_id={result['person_id']} "
+                        f"sample_id={result['sample_id']} "
+                        f"duration={result['duration_seconds']:.1f}s "
+                        f"embedding_dim={result['embedding_dim']}")
+        except httpx.HTTPStatusError as e:
+            click.echo(
+                f"\nServer rejected enrollment "
+                f"({e.response.status_code}): {e.response.text}", err=True)
+            return 2
+        except Exception as e:
+            click.echo(f"\nUpload failed: {e}", err=True)
+            return 2
+        return 0
+
+    rc = _user_friendly(go) or 0
+    sys.exit(rc)
+
+
 @main.command()
 @click.argument("address")
 @click.option("--seconds", default=20, show_default=True,
