@@ -31,24 +31,95 @@ pytest                              # offline tests should pass
 
 ## Usage
 
+`pendant --help` is the source of truth for flags; canonical workflows are
+below. Addresses are placeholder MACs.
+
+### Capture
+
 ```bash
-# Find a pendant in the area
-pendant scan
+pendant scan                                       # find a pendant in range
+pendant info DE:AD:BE:EF:00:00                     # battery, fw, flash range, pubkey
 
-# Print info (battery, fw, flash page range, encryption pubkey)
-pendant info DE:AD:BE:EF:00:00
-
-# Sync everything as Ogg Opus, no encryption (pendant must be in plaintext mode)
+# Sync + decode into per-recording .opus + sidecars in one shot:
 pendant sync DE:AD:BE:EF:00:00 -o today.opus
 
-# Sync with a fresh keypair: pushes pubkey to pendant, saves priv key alongside
-pendant sync DE:AD:BE:EF:00:00 -o today.opus --push-key
+# Variants when the device is in encrypted mode:
+pendant sync DE:AD:BE:EF:00:00 -o today.opus --push-key             # new keypair
+pendant sync DE:AD:BE:EF:00:00 -o today.opus --key today.opus.key.pem  # existing
 
-# Sync using an existing private key from a previous run
-pendant sync DE:AD:BE:EF:00:00 -o today.opus --key today.opus.key.pem
+# Or split the steps — capture wire-fidelity .bin, decode later:
+pendant capture DE:AD:BE:EF:00:00 -o today.bin
+pendant decode  today.bin -o today.opus
+```
 
-# Wipe flash on the device (factory-reset of storage)
+`sync` produces both a wire-fidelity `<base>.bin` AND per-recording
+`<base>_rec<NNNN>.opus` files plus `<base>.manifest.json` /
+`<base>.events.json` sidecars. `capture` writes only the `.bin`. `decode`
+goes the other way — `.bin` to per-recording `.opus`.
+
+### Server upload (optional)
+
+Only needed if you also run a pendant-server alongside this client:
+
+```bash
+pendant push today.bin --url http://localhost:8000/v3/pendant-upload-data-ordered
+pendant sync ... -o today.opus --upload http://localhost:8000/v3/pendant-upload-data-ordered
+pendant enroll-voice DE:AD:BE:EF:00:00 --url http://localhost:8000 --wearer
+pendant enroll-voice DE:AD:BE:EF:00:00 --url http://localhost:8000 --name "Sarah"
+```
+
+### Diagnostics
+
+```bash
+pendant inspect  DE:AD:BE:EF:00:00 -n 5            # raw flash_page hex + entropy
+pendant debug    DE:AD:BE:EF:00:00                 # GATT dump + notification trace
+pendant set-time DE:AD:BE:EF:00:00                 # push host clock to pendant
+```
+
+### First-time pairing (and used pendants)
+
+The pendant accepts **one bond at a time**. A pendant that's never been
+used just triggers your OS's pairing dialog on the first connection, and
+`bleak` handles the rest:
+
+```bash
+pendant pair DE:AD:BE:EF:00:00                     # only if the OS doesn't auto-pair
+```
+
+If your pendant was previously bonded — to the official Limitless app, a
+different machine, or a previous owner — that bond must be cleared on the
+**pendant side** first, otherwise GATT writes are silently dropped:
+
+- If you can still reach the previous app, factory-reset from there.
+- Otherwise, long-press the side button per Limitless's documentation to
+  factory-reset the device itself.
+
+```bash
+pendant unpair DE:AD:BE:EF:00:00                   # ask a paired pendant to drop its bond
+```
+
+`unpair` requires the link to *already* be authenticated, so it's the
+clean-up-before-retire command, not the recover-from-strange-state one.
+
+### Resetting the pendant
+
+Three levels, ordered from least to most destructive:
+
+| Command | Effect | Preserves |
+|---|---|---|
+| `clear-storage` | Erases the flash log (audio recordings) | Bond, RAM flags incl. `audio_encryption_enabled` |
+| `reset`         | Soft reboot                              | Flash log; clears RAM-only state |
+| `factory-reset` | Wipe flash + reboot + clear bond keys    | Nothing — you'll need to re-pair |
+
+Most users hitting an unwanted encryption state want **`reset`**, not
+`factory-reset`. The `audio_encryption_enabled` flag is RAM-only — it
+survives `clear-storage` but is cleared on any reboot. `reset` flips it
+back without losing existing recordings or having to re-pair.
+
+```bash
 pendant clear-storage DE:AD:BE:EF:00:00
+pendant reset         DE:AD:BE:EF:00:00
+pendant factory-reset DE:AD:BE:EF:00:00            # destructive
 ```
 
 ## Project layout
@@ -86,7 +157,9 @@ client/
 | `DownloadFlashPages` (case 8) batch mode | ✓ | The main "give me audio" command |
 | `DeleteFlashPage` (case 7) | ✓ | Auto-issued after each chunk |
 | `ClearPendantStorage` (case 25) | ✓ | Factory-reset of flash log |
-| `FactoryResetPendant` (case 10) | not exposed | Easy to add — see `session.py` |
+| `FactoryResetPendant` (case 10) | ✓ | Wired via `pendant factory-reset` |
+| `ResetDevice` (case 11) | ✓ | Wired via `pendant reset` (RAM-only reboot) |
+| `UnpairBluetooth` (case 15) | ✓ | Wired via `pendant unpair` |
 | WiFi sync mode | not implemented | Doesn't exist in firmware v1.1.20 |
 | Real-time mode (BLE_REALTIME) | not implemented | Inert in firmware v1.1.20 |
 | Vapi voice-agent feature | out of scope | Lives in the phone app, not the device |
