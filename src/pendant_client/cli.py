@@ -94,8 +94,15 @@ def _crc32_ogg(data: bytes,
 class OggOpusWriter:
     """Minimal writer producing a valid .opus file from emitted Opus packets."""
 
-    SAMPLE_RATE = 16_000  # pendant: 16 kHz
-    SAMPLES_PER_FRAME = 320  # 20 ms @ 16 kHz
+    SAMPLE_RATE = 16_000  # pendant input sample rate (informational, in OpusHead)
+    # Per RFC 7845 § 4, Opus granule positions are counted at a fixed
+    # 48 kHz rate REGARDLESS of the input sample rate (Opus always
+    # decodes to 48 kHz internally). 20 ms @ 48 kHz = 960 samples.
+    # If you use 320 here (correct for 16 kHz input), every duration /
+    # seek-bar UI reports 1/3 of actual playtime — audio plays at the
+    # right speed (decoder doesn't care about granules), but the
+    # player thinks the file is 3× shorter than it is.
+    SAMPLES_PER_FRAME = 960
 
     def __init__(self, path: Path):
         self._fp = path.open("wb")
@@ -167,8 +174,16 @@ class OggOpusWriter:
         self._write_page(packet, granule=self._granule)
 
     def close(self) -> None:
-        # Write a final empty page with eos flag set.
+        # Per RFC 3533 § 6, the last Ogg page of a logical stream must
+        # have the EOS bit (0x04) set, with its granule position equal
+        # to the final sample index. Without it, players compute the
+        # duration from a partial parse and then keep playing past the
+        # displayed length — the file is technically a truncated/in-
+        # progress stream.
         try:
+            if self._granule > 0:
+                # Empty data page (1 segment of length 0) with EOS flag.
+                self._write_page(b"", is_last=True, granule=self._granule)
             self._fp.flush()
             self._fp.close()
         except Exception:
