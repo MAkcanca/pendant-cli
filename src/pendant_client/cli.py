@@ -1224,11 +1224,7 @@ def enroll_voice(
                         audio_path=longest_rw.path,
                         server_url=url,
                     )
-                    click.echo(
-                        f"Enrolled as wearer: person_id={result['person_id']} "
-                        f"sample_id={result['sample_id']} "
-                        f"duration={result['duration_seconds']:.1f}s "
-                        f"embedding_dim={result['embedding_dim']}")
+                    label = "wearer"
                 else:
                     result = enroll_person_voice(
                         client=http,
@@ -1236,12 +1232,15 @@ def enroll_voice(
                         server_url=url,
                         name=name,  # type: ignore[arg-type]
                     )
-                    click.echo(
-                        f"Enrolled {name!r}: "
-                        f"person_id={result['person_id']} "
-                        f"sample_id={result['sample_id']} "
-                        f"duration={result['duration_seconds']:.1f}s "
-                        f"embedding_dim={result['embedding_dim']}")
+                    label = repr(result.get("name", name))
+                count = result.get("sample_count", 1)
+                click.echo(
+                    f"Enrolled as {label}: "
+                    f"now has {count} sample{'' if count == 1 else 's'} "
+                    f"(person_id={result['person_id']}, "
+                    f"sample_id={result['sample_id']}, "
+                    f"duration={result['duration_seconds']:.1f}s, "
+                    f"embedding_dim={result['embedding_dim']})")
         except httpx.HTTPStatusError as e:
             click.echo(
                 f"\nServer rejected enrollment "
