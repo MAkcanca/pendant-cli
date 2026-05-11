@@ -9,6 +9,7 @@ dependencies = [
     "protobuf>=4.25",              # proto runtime
     "cryptography>=42",            # ECDH-P256 + HKDF + AES-GCM
     "click>=8",                    # CLI
+    "httpx>=0.27",                 # HTTP push to pendant-server
 ]
 
 [project.optional-dependencies]

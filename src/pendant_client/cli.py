@@ -1027,6 +1027,38 @@ def decode(bin_path: str, out_path: str, key_path: Optional[str],
 
 
 @main.command()
+@click.argument("bin_path", type=click.Path(exists=True))
+@click.option("--url", required=True,
+              help="Full ingest URL, e.g. "
+                   "http://server:8000/v3/pendant-upload-data-ordered")
+@click.option("--peripheral-id", "peripheral_id", default=None,
+              help="BLE peripheral ID to send as query param. "
+                   "Defaults to reading the .bin's ble_identifier field.")
+def push(bin_path: str, url: str, peripheral_id: Optional[str]) -> None:
+    """Upload a captured .bin to a pendant-server ingest endpoint."""
+    import httpx
+    from .decode import read_batch_ingest_request_metadata
+    from .upload import push_bin
+
+    src = Path(bin_path)
+    if peripheral_id is None:
+        meta = read_batch_ingest_request_metadata(src)
+        peripheral_id = meta.get("ble_identifier", "") or ""
+        if not peripheral_id:
+            click.echo("--peripheral-id is required (no ble_identifier in .bin)",
+                       err=True)
+            sys.exit(2)
+
+    with httpx.Client() as client:
+        result = push_bin(
+            client=client, bin_path=src, url=url,
+            peripheral_id=peripheral_id,
+        )
+    click.echo(f"Uploaded: batch_id={result['batch_id']} "
+               f"bytes={result['bytes']}")
+
+
+@main.command()
 @click.argument("address")
 @click.option("--seconds", default=20, show_default=True,
               help="How long to listen for raw notifications.")
