@@ -799,9 +799,13 @@ class _AsyncBytesTee:
               help="Also process COMMAND-type flash_pages (Zephyr debug logs). "
                    "Off by default — they're not audio and would corrupt the "
                    "Opus output.")
+@click.option("--upload", "upload_url", default=None,
+              help="Also POST the captured .bin to this ingest URL "
+                   "after capture completes (e.g. "
+                   "http://server:8000/v3/pendant-upload-data-ordered).")
 def sync(address: str, out_path: str, key_path: Optional[str],
          push_key: bool, idle: float, no_decode: bool,
-         include_logs: bool) -> None:
+         include_logs: bool, upload_url: Optional[str]) -> None:
     """Download from the pendant — captures wire-fidelity .bin AND
     decodes per-recording .opus files in one shot.
 
@@ -876,6 +880,22 @@ def sync(address: str, out_path: str, key_path: Optional[str],
 
         if no_decode:
             return 0
+
+        if upload_url:
+            import httpx
+            from .upload import push_messages
+            click.echo(f"\nUploading {len(raw_messages)} messages to {upload_url}")
+            with httpx.Client() as http:
+                try:
+                    result = push_messages(
+                        client=http,
+                        messages=raw_messages,
+                        url=upload_url,
+                        peripheral_id=address,
+                    )
+                    click.echo(f"Upload OK: batch_id={result['batch_id']}")
+                except Exception as e:
+                    click.echo(f"Upload failed: {e}", err=True)
 
         # Decode: feed the in-memory raw messages through the audio
         # parser + heuristic-C splitter.

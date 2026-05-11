@@ -49,3 +49,32 @@ def test_push_bin_raises_on_4xx(tmp_path: Path) -> None:
                 url="http://srv/v3/pendant-upload-data-ordered",
                 peripheral_id="AA:BB",
             )
+
+
+def test_push_messages_streams_a_collection(tmp_path: Path) -> None:
+    """When sync --upload streams, it accumulates messages then pushes
+    one .bin at the end (simplest 'both' implementation)."""
+    from pendant_client.upload import push_messages
+
+    captured = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["body"] = request.content
+        captured["query"] = dict(request.url.params)
+        return httpx.Response(200, json={"batch_id": 1, "bytes": len(request.content)})
+
+    transport = httpx.MockTransport(handler)
+    messages = [b"\x0a\x01A", b"\x0a\x01B"]  # any bytes; server will parse
+    with httpx.Client(transport=transport) as c:
+        result = push_messages(
+            client=c, messages=messages,
+            url="http://srv/v3/pendant-upload-data-ordered",
+            peripheral_id="AA:BB",
+        )
+    assert result["batch_id"] == 1
+    # Body must be a valid BatchIngestRequest containing our two messages.
+    from pendant_client.decode import iter_messages_from_bin
+    tmp = tmp_path / "rt.bin"
+    tmp.write_bytes(captured["body"])
+    recovered = list(iter_messages_from_bin(tmp))
+    assert recovered == messages
