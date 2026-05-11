@@ -442,6 +442,8 @@ class PendantSession:
         Acks each storage_buffer page via `delete_flash_page`. Returns
         when no message has arrived for `idle_timeout` seconds.
         """
+        from .ble import suppress_disconnect
+
         await self.begin_batch_download()
         try:
             while True:
@@ -454,9 +456,21 @@ class PendantSession:
                     break
                 yield payload
                 if msg.WhichOneof("content") == "storage_buffer":
-                    await self.delete_flash_page(msg.storage_buffer.index)
+                    # Acking a delete on a disconnected link is just lost
+                    # work, not a failure — the pendant will redeliver
+                    # the page next sync if it didn't see the ack.
+                    await suppress_disconnect(
+                        self.delete_flash_page(msg.storage_buffer.index),
+                        what="delete_flash_page",
+                    )
         finally:
-            await self.stop_batch_download()
+            # If the link dropped mid-stream, the polite "stop batch"
+            # write fails harmlessly here; the bytes we already captured
+            # are intact in the caller's buffer.
+            await suppress_disconnect(
+                self.stop_batch_download(),
+                what="stop_batch_download",
+            )
 
     async def download(
         self,

@@ -34,6 +34,7 @@ from typing import Awaitable, Callable, Optional
 
 from bleak import BleakClient, BleakScanner
 from bleak.backends.device import BLEDevice
+from bleak.exc import BleakError
 
 from . import (
     BATTERY_LEVEL_UUID,
@@ -53,6 +54,66 @@ class PendantNotPairedError(RuntimeError):
     See the message body for resolution instructions. This is a
     user-facing error, not a bug."""
     pass
+
+
+# ---------------------------------------------------------------------------
+# Cleanup-path disconnect tolerance.
+#
+# When the BLE link drops during a sync, the cleanup commands the client
+# tries to send (stop_batch_download, stop_notify, disconnect) fail with
+# misleading error messages. We treat any of these as "already
+# disconnected" and suppress them on cleanup paths only. The user's data
+# has already been written by that point; raising would mask success.
+#
+# Markers observed in the wild across bleak backends:
+#   - bleak.exc.BleakError("Not connected")           (all backends)
+#   - WinRT:    OSError(-2147023673, "The operation was canceled by the user")
+#   - WinRT:    "Object reference not set to an instance of an object"
+#                (race when device drops mid-write)
+#   - BlueZ:    "Software caused connection abort" / "No such device"
+#   - CoreBluetooth: "The peripheral is not connected"
+_DISCONNECT_MARKERS = (
+    "not connected",
+    "the operation was canceled",
+    "the operation was cancelled",
+    "operation was canceled",
+    "operation was cancelled",
+    "-2147023673",
+    "the peripheral is not connected",
+    "no such device",
+    "software caused connection abort",
+    "object reference not set",
+)
+
+
+def is_disconnect_exception(exc: BaseException) -> bool:
+    """True if an exception looks like 'BLE link already gone' rather
+    than a genuine command failure."""
+    if not isinstance(exc, (BleakError, OSError, EOFError)):
+        return False
+    msg = str(exc).lower()
+    return any(m in msg for m in _DISCONNECT_MARKERS)
+
+
+async def suppress_disconnect(awaitable, *, what: str) -> None:
+    """Run an awaitable as part of a cleanup path. If it raises a
+    'BLE link already gone' error, log at INFO and swallow it. Any
+    other Exception is logged at WARNING and also swallowed so it
+    cannot mask whatever sent us into cleanup.
+
+    BaseException (KeyboardInterrupt, SystemExit, GeneratorExit) is
+    NOT caught — those must propagate."""
+    try:
+        await awaitable
+    except Exception as e:
+        if is_disconnect_exception(e):
+            log.info("Skipping %s — BLE link already closed (%s: %s)",
+                     what, type(e).__name__, e)
+        else:
+            log.warning(
+                "Cleanup step %s failed; continuing (%s: %s)",
+                what, type(e).__name__, e,
+            )
 
 # Maximum payload bytes per fragment. The ATT MTU is the negotiated MTU
 # minus 3 bytes ATT overhead. The fragment wrapper itself adds a few
@@ -263,11 +324,20 @@ class PendantTransport:
         return self
 
     async def __aexit__(self, *exc):
-        try:
-            if self._notify_started:
-                await self._client.stop_notify(NOTIFY_CHAR_UUID)
-        finally:
-            await self._client.disconnect()
+        # Both of these can fail if the device has already disconnected
+        # (drops mid-sync, range loss, OS Bluetooth-stack hiccup). The
+        # data the caller cared about has already been delivered by the
+        # time we get here, so suppress disconnect errors and let the
+        # caller's exit code reflect whether the *work* succeeded.
+        if self._notify_started:
+            await suppress_disconnect(
+                self._client.stop_notify(NOTIFY_CHAR_UUID),
+                what="stop_notify",
+            )
+        await suppress_disconnect(
+            self._client.disconnect(),
+            what="disconnect",
+        )
 
     # ----- notify reception -----
 
