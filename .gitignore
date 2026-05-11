@@ -17,6 +17,7 @@ dist/
 # IDE
 .vscode/
 .idea/
+.claude/
 
 # tests / runs
 *.opus

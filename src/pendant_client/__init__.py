@@ -9,7 +9,7 @@ __version__ = "0.1.0"
 
 # Limitless BLE service / characteristic UUIDs. Verified from the
 # Android APK (`p550c.C6735a` constants class) and the GATT scan
-# advertisement payload — see notes/03-ble-overview.md.
+# advertisement payload.
 SERVICE_UUID         = "632de001-604c-446b-a80f-7963e950f3fb"
 WRITE_CHAR_UUID      = "632de002-604c-446b-a80f-7963e950f3fb"  # phone -> pendant
 NOTIFY_CHAR_UUID     = "632de003-604c-446b-a80f-7963e950f3fb"  # pendant -> phone

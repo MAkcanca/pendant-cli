@@ -6,22 +6,16 @@ fragments, optionally decrypts them, and writes a streamable Ogg Opus
 file you can play in any Opus-aware player.
 
 Built from static analysis of the official Android app and the firmware
-v1.1.20 image — see the writeups in `../notes/` (especially
-`12-firmware-analysis.md`, `16-verified-recording-and-sync-paths.md`,
-`17-loose-ends-resolved.md`, `18-flash-page-format-resolved.md`,
-`19-audio-encryption-key-lifecycle.md`).
+v1.1.20 image.
 
 ## Status
 
-This is the first iteration. Tested in isolation (parsers + crypto are
-unit-tested with synthetic data). **Not yet validated against a live
-device.** When you point it at a real pendant, expect to fix at least:
+Parsers + crypto are unit-tested with synthetic data and the full
+capture/decode pipeline has been exercised against a real pendant
+running firmware v1.1.20. Platform variance to watch out for:
 
 - BLE bonding requirements on your specific OS (`bleak` handles most of
   this but the platform behaviour varies)
-- The exact field-number layout inside `flash_page` inner submessages
-  (we use a content-based heuristic — see `flash_page.py` — that should
-  work but isn't byte-verified yet)
 - The `idle_timeout` for `download` may need tuning for slow flash drain
 
 ## Install
@@ -117,10 +111,9 @@ following can only be verified against a paired pendant:
 ## Why this is a small surface
 
 The pendant only speaks BLE. It has no WiFi client, no HTTP client, no
-TLS, no socket layer in firmware v1.1.20 (every WiFi-related proto
-handler is inert — see `notes/16-verified-recording-and-sync-paths.md`
-§Q3-Q4). All you need is BLE + the proto bindings, hence the small code
-size.
+TLS, no socket layer in firmware v1.1.20 — every WiFi-related proto
+handler is inert. All you need is BLE + the proto bindings, hence the
+small code size.
 
 ## License
 

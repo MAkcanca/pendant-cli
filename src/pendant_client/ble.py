@@ -9,9 +9,9 @@ Responsibilities:
   reassemble payload by fragment seq, decode the inner `PendantAllMsg`,
   match request/response by `request_id` and dispatch to subscribers.
 
-The fragment wrapper protocol is verified in `notes/12-firmware-analysis.md`
-section 8c (Pendant-side reassembly = `ble_command_recv__decode_dispatch`,
-FUN_0000e668). Each fragment carries:
+The fragment wrapper protocol is verified against the pendant-side
+reassembly handler (`ble_command_recv__decode_dispatch`, FUN_0000e668).
+Each fragment carries:
 
     BLEMessageFromNativeToPendant {
         uint32 index           = 1;   // monotonic message id

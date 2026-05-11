@@ -1,7 +1,6 @@
 """Audio encryption / decryption.
 
-Mirrors the pendant-side encryption pipeline documented in
-`notes/19-audio-encryption-key-lifecycle.md`:
+Mirrors the pendant-side encryption pipeline:
 
 - ECC P-256 keypair on each side
 - Shared secret = ECDH(server_priv, pendant_pub) = ECDH(pendant_priv, server_pub)
@@ -62,9 +61,8 @@ def export_server_pubkey(server_priv: ec.EllipticCurvePrivateKey) -> bytes:
 @dataclass(frozen=True)
 class AudioKeySet:
     """Keypair + derived AES key for one pendant. The AES key is what the
-    backend would store in Firestore (see notes/19) and what's used to
-    decrypt every audio chunk for that pendant for the lifetime of the
-    pairing."""
+    official backend stores per-device, and what's used to decrypt every
+    audio chunk for that pendant for the lifetime of the pairing."""
     server_priv: ec.EllipticCurvePrivateKey
     server_pub_bytes: bytes
     pendant_pub_bytes: bytes
@@ -73,9 +71,8 @@ class AudioKeySet:
 
 def generate_keyset(pendant_pub_bytes: bytes) -> AudioKeySet:
     """Generate a fresh server keypair and derive the audio AES key
-    given the pendant's public key. This is what
-    `_deriveKeysForAudioEncryption` does on the JS side
-    (see notes/19, function id #27936)."""
+    given the pendant's public key. Mirrors
+    `_deriveKeysForAudioEncryption` in the official JS client."""
     pendant_pub = import_pendant_pubkey(pendant_pub_bytes)
     server_priv = ec.generate_private_key(ec.SECP256R1())
     shared = server_priv.exchange(ec.ECDH(), pendant_pub)

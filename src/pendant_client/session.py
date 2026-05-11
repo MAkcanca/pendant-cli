@@ -340,8 +340,7 @@ class PendantSession:
     async def handshake(self) -> None:
         """Run the same post-pair sequence the official app uses.
 
-        Order matches `transitionToPaired()` in the Android app
-        (notes/03-ble-overview.md lines 87-93):
+        Order matches `transitionToPaired()` in the Android app:
           1) SetCurrentTime
           2) DownloadFlashPages(batch_mode_enabled=true)
 
