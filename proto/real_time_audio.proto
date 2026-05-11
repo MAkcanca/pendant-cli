@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package limitless.real_time_audio;
+
+message RealTimeAudioAck {
+  uint32 stream_id = 1;
+  uint64 ack_index = 2;
+  repeated int64 missing_indices = 3;
+  uint32 free_amplifier_queue_slots = 4;
+  uint32 free_speaker_queue_slots = 5;
+  uint32 free_ble_queue_slots = 6;
+}
+
+message RealTimeAudioData {
+  uint32 stream_id = 1;
+  uint64 first_frame_index = 2;
+  uint64 ts_ms = 3;
+  bytes opus_packet = 4;
+  repeated int32 frame_sizes = 5;
+}

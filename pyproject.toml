@@ -1,0 +1,32 @@
+[project]
+name = "limitless-pendant-client"
+version = "0.1.0"
+description = "Self-hosted client for the Limitless Pendant (BLE audio recorder, FCC ID 2BL99-LSPT01)"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = [
+    "bleak>=0.21",                 # cross-platform BLE
+    "protobuf>=4.25",              # proto runtime
+    "cryptography>=42",            # ECDH-P256 + HKDF + AES-GCM
+    "click>=8",                    # CLI
+]
+
+[project.optional-dependencies]
+opus = ["opuslib>=3.0.1"]          # decode opus to PCM
+dev  = ["grpcio-tools>=1.62", "pytest>=8", "pytest-asyncio>=0.23"]
+
+[project.scripts]
+pendant = "pendant_client.cli:main"
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+pendant_client = ["proto/*.py", "proto/*.pyi"]

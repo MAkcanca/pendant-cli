@@ -1,0 +1,198 @@
+syntax = "proto3";
+
+package limitless.native_comm;
+
+import "common.proto";
+
+message AnalyticsIdentifyRequest {
+  string id = 1;
+  string email = 2;
+}
+
+message AnalyticsUnidentifyRequest {
+}
+
+message BluetoothStartScanningRequest {
+  bool hide_paired_pendants = 1;
+}
+
+message CleanCodecResourcesRequest {
+  uint32 sample_rate = 1;
+  int32 channels = 2;
+}
+
+message DecodeAudioRequest {
+  repeated bytes opus_frames = 1;
+  uint32 sample_rate = 2;
+  uint32 channels = 3;
+}
+
+message DecodeAudioResponse {
+  oneof result {
+    DecodedAudioData data = 1;
+    string error_message = 2;
+  }
+}
+
+message DecodedAudioData {
+  bytes pcm_data = 1;
+  uint32 sample_rate = 2;
+  uint32 channels = 3;
+  uint32 duration_ms = 4;
+}
+
+message DidReceiveDeviceInfoRequest {
+  bytes device_info = 1;
+}
+
+message EncodeAudioRequest {
+  string pcm_data = 1;
+  uint32 sample_rate = 2;
+  uint32 channels = 3;
+}
+
+message EncodeAudioResponse {
+  oneof result {
+    EncodedAudioData data = 1;
+    string error_message = 2;
+  }
+}
+
+message EncodedAudioData {
+  repeated bytes frames = 1;
+  uint32 byte_size = 2;
+}
+
+message ExportLogsRequest {
+}
+
+message GetFirebaseDebuggingEnabledRequest {
+}
+
+message GetFirebaseDebuggingEnabledResponse {
+  bool enabled = 1;
+}
+
+message GetPendantStatus {
+}
+
+message MessageMuxerState {
+  bool enabled = 1;
+  bool is_connected_to_client = 2;
+}
+
+message MessageMuxerStateRequest {
+}
+
+message NativeBridgeMessage {
+  oneof content {
+    OpenUrlRequest open_url = 1;
+    BluetoothStartScanningRequest bluetooth_start_scanning = 2;
+    AnalyticsIdentifyRequest analytics_identify = 3;
+    AnalyticsUnidentifyRequest analytics_unidentify = 4;
+    ExportLogsRequest export_logs = 5;
+    SendMessageRequest send_message = 6;
+    GetPendantStatus get_pendant_status = 7;
+    SetBridgeIsReadyRequest set_bridge_is_ready = 8;
+    SetPairingAndAuthenticationCompletedRequest set_pairing_and_authentication_completed = 9;
+    UnpairPeripheralRequest unpair_peripheral = 10;
+    PerformFirmwareUpdateRequest perform_firmware_update = 11;
+    DidReceiveDeviceInfoRequest did_receive_device_info = 12;
+    WipeNativeStorageRequest wipe_native_storage = 13;
+    SetIngestTokenRequest set_ingest_token = 14;
+    ViewLogsRequest view_logs = 15;
+    UpdateWebServerURLRequest update_web_server_url = 16;
+    SetFirmwareChannelRequest set_firmware_update_channel = 17;
+    ResetFirmwareUpdateStateRequest reset_firmware_update_state = 18;
+    UploadAllLocalDataRequest upload_all_local_data = 19;
+    ToggleUploadingPendantDataRequest toggle_uploading_pendant_data = 25;
+    UpdateUserDefaultsRequest update_user_defaults = 26;
+    MessageMuxerStateRequest get_message_muxer_state = 27;
+    bool set_message_muxer_enabled = 28;
+    bool set_firebase_debugging_enabled = 29;
+    GetFirebaseDebuggingEnabledRequest get_firebase_debugging_enabled = 30;
+    SetRSSIIntervalEnabledRequest set_rssi_interval_enabled = 31;
+    EncodeAudioRequest encode_audio = 32;
+    DecodeAudioRequest decode_audio = 33;
+    CleanCodecResourcesRequest clean_codec_resources = 34;
+  }
+}
+
+message OpenUrlRequest {
+  string url = 1;
+}
+
+message OpenUrlResponse {
+  bool success = 1;
+}
+
+message PerformFirmwareUpdateRequest {
+  string ble_identifier = 1;
+  string signed_url = 2;
+  string update_sha256 = 3;
+}
+
+message ResetFirmwareUpdateStateRequest {
+}
+
+message SendMessageRequest {
+  bytes message = 1;
+  limitless.common.BluetoothPeripheral peripheral = 2;
+  double timeout = 3;
+}
+
+message SetBridgeIsReadyRequest {
+  bool is_ready = 1;
+}
+
+message SetFirmwareChannelRequest {
+  limitless.common.FirmwareChannel channel = 1;
+  limitless.common.FirmwareCodeSigningMethod code_signing_method = 2;
+}
+
+message SetIngestTokenRequest {
+  string ble_identifier = 1;
+  string ingest_token = 2;
+  uint64 get_ingest_token_request_id = 3;
+  string error_message = 4;
+}
+
+message SetPairingAndAuthenticationCompletedRequest {
+  string ble_identifier = 1;
+}
+
+message SetRSSIIntervalEnabledRequest {
+  bool enabled = 1;
+  float interval_in_seconds = 2;
+}
+
+message SetRSSIIntervalEnabledResponse {
+  bool success = 1;
+  string error_message = 2;
+  bool is_monitoring_enabled = 3;
+  float current_interval = 4;
+}
+
+message ToggleUploadingPendantDataRequest {
+  bool is_enabled = 1;
+}
+
+message UnpairPeripheralRequest {
+}
+
+message UpdateUserDefaultsRequest {
+}
+
+message UpdateWebServerURLRequest {
+  string host = 1;
+}
+
+message UploadAllLocalDataRequest {
+}
+
+message ViewLogsRequest {
+  string ble_identifier = 1;
+}
+
+message WipeNativeStorageRequest {
+}

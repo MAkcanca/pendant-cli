@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+package limitless.common;
+
+enum FirmwareChannel {
+  PRODUCTION = 0;
+  DEVELOPMENT = 1;
+}
+
+enum FirmwareCodeSigningMethod {
+  RELEASE_CODE_SIGNING = 0;
+  DEVELOPMENT_CODE_SIGNING = 1;
+}
+
+message BLEMessageFromNativeToPendant {
+  uint32 index = 1;
+  uint32 ble_fragment_seq = 2;
+  uint32 num_fragments = 3;
+  bytes payload = 4;
+}
+
+message BLEMessageFromPendantToNative {
+  uint32 index = 1;
+  uint32 ble_fragment_seq = 2;
+  uint32 num_fragments = 3;
+  bytes payload = 4;
+}
+
+message BluetoothPeripheral {
+  string identifier = 1;
+  string name = 2;
+  bool is_paired = 3;
+}
+
+message GenericResponse {
+  string ack = 1;
+}

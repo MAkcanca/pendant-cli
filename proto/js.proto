@@ -1,0 +1,144 @@
+syntax = "proto3";
+
+package limitless.js;
+
+import "common.proto";
+
+enum AppLifecycleState {
+  UNKNOWN = 0;
+  FOREGROUND = 1;
+  BACKGROUND = 2;
+}
+
+enum BluetoothDisconnectedReason {
+  NOT_PAIRED = 0;
+  UNAVAILABLE = 1;
+  USER_UNPAIRED_IN_SETTINGS = 2;
+  CONNECTION_FAILURE = 3;
+  BLUETOOTH_DISABLED = 4;
+  BLUETOOTH_NEEDS_TOGGLE = 5;
+  BLUETOOTH_PERMISSION_DENIED = 6;
+}
+
+enum BluetoothState {
+  BLUETOOTH_STATE_UNKNOWN = 0;
+  BLUETOOTH_STATE_POWERED_OFF = 1;
+  BLUETOOTH_STATE_POWERED_ON = 2;
+  BLUETOOTH_STATE_UNSUPPORTED = 3;
+  BLUETOOTH_STATE_UNAUTHORIZED = 4;
+  BLUETOOTH_STATE_RESETTING = 5;
+}
+
+enum FirmwareUpdateStep {
+  FIRMWARE_UPDATE_STEP_UNSPECIFIED = 0;
+  FIRMWARE_UPDATE_STEP_IDLE = 1;
+  FIRMWARE_UPDATE_STEP_SYNCING = 2;
+  FIRMWARE_UPDATE_STEP_DOWNLOADING = 3;
+  FIRMWARE_UPDATE_STEP_VALIDATING = 4;
+  FIRMWARE_UPDATE_STEP_SENDING_TO_DEVICE = 5;
+  FIRMWARE_UPDATE_STEP_INSTALLING = 6;
+  FIRMWARE_UPDATE_STEP_RESTARTING_DEVICE = 7;
+  FIRMWARE_UPDATE_STEP_COMPLETED = 8;
+  FIRMWARE_UPDATE_STEP_FAILED = 9;
+  FIRMWARE_UPDATE_STEP_CANCELLED = 10;
+}
+
+message AnalyticsTrackMessage {
+  string event_name = 1;
+  string properties_json = 2;
+}
+
+message BluetoothPermissionDeniedMessage {
+}
+
+message BluetoothReceivedFragmentGroupMessage {
+  uint64 fragment_count = 1;
+  int32 largest_session_id = 2;
+  uint64 newest_flash_page = 3;
+  uint64 newest_chunk_timestamp_ms = 4;
+}
+
+message BluetoothReceivedFragmentMessage {
+  uint32 index = 1;
+  bytes data = 2;
+  string peripheral_id = 3;
+}
+
+message BluetoothStateDidChange {
+  BluetoothState state = 1;
+}
+
+message CheckForUpdateMessage {
+}
+
+message FirmwareUpdateState {
+  FirmwareUpdateStep step = 1;
+  string step_details = 2;
+  bool is_update_in_progress = 3;
+}
+
+message FragmentDidUploadMessage {
+  string file_name = 1;
+}
+
+message FragmentStorageSizeDidChange {
+  uint64 size = 1;
+}
+
+message GetIngestTokenMessage {
+  string peripheral_id = 1;
+}
+
+message GetIngestTokenResponse {
+  string ingest_token = 1;
+}
+
+message JSBridgeMessage {
+  oneof content {
+    BluetoothReceivedFragmentMessage bluetooth_received_fragment = 1;
+    GetIngestTokenMessage get_ingest_token = 2;
+    AppLifecycleState app_lifecycle_did_change = 3;
+    FirmwareUpdateState firmware_update_state_did_change = 4;
+    FragmentStorageSizeDidChange fragment_storage_size_did_change = 5;
+    BluetoothReceivedFragmentGroupMessage bluetooth_received_fragment_group = 6;
+    FragmentDidUploadMessage fragment_did_upload = 7;
+    UserDefaultsMessage user_defaults = 8;
+    CheckForUpdateMessage check_for_update = 9;
+    PendantStatus pendant_status = 10;
+    PendantCharacteristicValue pendant_characteristic_value = 11;
+    AnalyticsTrackMessage analytics_track = 12;
+    BluetoothPermissionDeniedMessage bluetooth_permission_denied = 13;
+  }
+}
+
+message PendantCharacteristicValue {
+  oneof content {
+    int32 battery_level = 1;
+    int32 rssi = 2;
+  }
+}
+
+message PendantStatus {
+  string saved_peripheral_id = 1;
+  oneof content {
+    BluetoothDisconnectedReason disconnect_reason = 2;
+    limitless.common.BluetoothPeripheral peripheral = 3;
+  }
+}
+
+message SendMessageResponse {
+  oneof content {
+    bytes data = 1;
+    string error_message = 2;
+  }
+}
+
+message UploadAllLocalDataResponse {
+  string error = 1;
+  int64 most_recent_data_timestamp_ms = 2;
+}
+
+message UserDefaultsMessage {
+  limitless.common.FirmwareChannel firmware_update_channel = 1;
+  limitless.common.FirmwareCodeSigningMethod firmware_code_signing_method = 2;
+}

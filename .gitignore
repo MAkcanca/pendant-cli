@@ -1,0 +1,31 @@
+# venv
+.venv/
+.env
+
+# generated proto bindings
+src/pendant_client/proto/*_pb2.py
+src/pendant_client/proto/*_pb2.pyi
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+build/
+dist/
+
+# IDE
+.vscode/
+.idea/
+
+# tests / runs
+*.opus
+*.ogg
+*.pcm
+*.bin
+*.events.json
+*.opus.events.json
+*.key.pem
+.pytest_cache/
+htmlcov/
+.coverage

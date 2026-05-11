@@ -1,0 +1,84 @@
+syntax = "proto3";
+
+package limitless.flash_page;
+
+import "shared.proto";
+
+// Reconstructed from the decompiled Limitless Android app, classes
+//   ai.limitless.pendant.flash_page.FlashPageProto$FlashPage
+//   ai.limitless.pendant.flash_page.FlashPageProto$Chunk
+//   ai.limitless.pendant.flash_page.FlashPageProto$PendantAudioData
+//   ai.limitless.pendant.flash_page.FlashPageProto$EncryptedBytes
+// (see notes/20-flash-page-app-schema.md for the citation trail).
+
+// One audio chunk's encrypted payload.
+message EncryptedBytes {
+  bytes nonce = 1;                       // 12-byte AES-GCM nonce
+  bytes ciphertext = 2;                  // raw ciphertext
+  bytes authentication_tag = 3;          // 16-byte tag
+  repeated int32 packet_offsets = 4;     // boundaries inside ciphertext
+                                         //   (multiple Opus packets per chunk)
+}
+
+// Audio (or audio-control) payload inside a Chunk.
+message PendantAudioData {
+  bytes  pcm_omni_mic_data           = 1;
+  bytes  pcm_directional_mic_data    = 2;
+  bytes  pcm_beamforming_data        = 3;
+  bytes  codec_beamforming_data      = 4;   // Opus packet(s) — beamformed mic
+  bytes  codec_manual_beamforming_data = 5;
+  bytes  reserved_1                  = 6;
+  bytes  pcm_manual_beamforming_data = 7;
+  // Recording-boundary flags. THESE are the canonical recording-start /
+  // recording-stop markers; StorageBufferMsg.session is *not* the boundary.
+  bool   did_start_recording         = 8;
+  bool   did_stop_recording          = 9;
+  int32  codec_type                  = 10;
+  int32  num_frames                  = 11;
+  int32  degree_of_arrival           = 12;
+  EncryptedBytes encrypted_codec_beamforming_data = 13;
+}
+
+// Multi-purpose record. At most one optional field is populated.
+message Chunk {
+  int32  time_offset_ms                                 = 1;
+  PendantAudioData                  audio_data          = 2;
+  limitless.shared.ButtonStatus     button_status       = 3;
+  limitless.shared.WifiStatus       wifi_status         = 4;
+  BleStatus                         ble_status          = 5;
+  limitless.shared.BatteryStatus    battery_status      = 6;
+  limitless.shared.UsbStatus        usb_status          = 7;
+  ImuData                           imu_data            = 8;
+  limitless.shared.RecordingStatus  recording_status    = 9;
+  LogOutput                         log_output          = 10;
+  RuntimeStatus                     runtime_status      = 11;
+  StorageStatus                     storage_status      = 12;
+  CpuStatus                         cpu_status          = 13;
+}
+
+// Top-level: this is the value of `StorageBufferMsg.flash_page`.
+message FlashPage {
+  uint64 absolute_timestamp_ms       = 1;   // wall-clock when sealed
+  uint64 boot_uptime_ms              = 2;   // pendant uptime when sealed
+  repeated Chunk chunks              = 3;
+}
+
+// StorageStatus carries the canonical recording-session boundary
+// markers. The official Limitless app's BLEFragment factory
+// (`f.a.a()`, formerly `m43390a`) computes `isLastInSession` by
+// scanning all chunks in a FlashPage for ANY chunk with
+// `storage_status.did_stop_storage_session = true`, then triggers a
+// forced upload. (`audio_data.did_*_recording` flags are
+// button-event-only — they don't fire on VAD-initiated recordings.)
+message StorageStatus {
+  bool did_start_storage_session = 1;
+  bool did_stop_storage_session  = 2;
+}
+
+// Stubs for the remaining Chunk submessage types — we don't need their
+// fields right now, but they must be declared for the schema.
+message BleStatus      {}
+message ImuData        {}
+message LogOutput      {}
+message RuntimeStatus  {}
+message CpuStatus      {}

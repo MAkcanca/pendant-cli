@@ -1,0 +1,116 @@
+syntax = "proto3";
+
+package limitless.shared;
+
+enum EnumC11639b {
+  DISCHARGING = 0;
+  CHARGING = 1;
+  FULL = 2;
+}
+
+enum Usb {
+  USB_DISCONNECTED = 0;
+  USB_CONNECTED = 1;
+}
+
+enum Button {
+  BUTTON_NOT_PRESSED = 0;
+  BUTTON_SHORT_PRESS = 1;
+  BUTTON_LONG_PRESS = 2;
+  BUTTON_DOUBLE_PRESS = 3;
+  BUTTON_SHORT_AND_SUPER_LONG_PRESS = 4;
+}
+
+enum EnumC11642e {
+  BUTTON = 0;
+  AMBIENT_SOUND = 1;
+}
+
+enum EnumC11643f {
+  NOT_RECORDING = 0;
+  RECORDING = 1;
+  LISTENING = 2;
+}
+
+enum EnumC11645h {
+  BAND_UNSPECIFIED = 0;
+  FREQ_2_4_GHZ = 1;
+  FREQ_5_GHZ = 2;
+  FREQ_6_GHZ = 3;
+}
+
+enum EnumC11646i {
+  MFP_UNSPECIFIED = 0;
+  DISABLED = 1;
+  REQUIRED = 3;
+}
+
+enum EnumC11647j {
+  NONE = 0;
+  WPA2_PSK = 1;
+  WPA2_PSK_SHA256 = 2;
+  WPA3_SAE = 3;
+  WAPI = 4;
+  EAP = 5;
+  WEP = 6;
+  WPA_PSK = 7;
+  WPA_AUTO_PERSONAL = 8;
+}
+
+enum Wifi {
+  WIFI_DISCONNECTED = 0;
+  WIFI_CONNECTING = 1;
+  WIFI_CONNECTED = 2;
+  WIFI_INIT_ERROR = 3;
+}
+
+message BatteryStatus {
+  EnumC11639b state = 1;
+  int32 voltage = 2;
+  int32 current = 3;
+  int32 temperature = 4;
+  int32 soc = 5;
+  int32 capacity = 6;
+  bool over_operating_temperature = 7;
+  bool under_operating_temperature = 8;
+  Usb usb_state = 9;
+}
+
+message ButtonStatus {
+  Button button_event = 1;
+  bool physical_button = 2;
+  uint32 num_short_presses_since_boot = 3;
+  uint32 num_long_presses_since_boot = 4;
+  uint32 num_double_presses_since_boot = 5;
+  uint64 button_event_absolute_timestamp_ms = 6;
+  uint32 short_press_duration_ms = 7;
+  int32 long_press_duration_ms = 8;
+}
+
+message RecordingStatus {
+  EnumC11643f recording_state = 1;
+  EnumC11642e recording_source = 2;
+  uint32 vad_level = 3;
+}
+
+message UsbStatus {
+  Usb state = 1;
+}
+
+message WiFiCredentials {
+  string ssid = 1;
+  EnumC11647j security = 2;
+  bytes password = 3;
+  bytes bssid = 4;
+  EnumC11645h band = 5;
+  uint32 channel = 6;
+  EnumC11646i mfp = 7;
+  int32 priority = 8;
+}
+
+message WifiStatus {
+  Wifi state = 1;
+  int32 rssi = 2;
+  int32 uptime = 3;
+  string ssid = 4;
+}
